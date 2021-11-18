@@ -1,0 +1,28 @@
+INFO [2021-11-17 23:25:03] ffcAPIClient Version 0.9.8.2
+INFO [2021-11-17 23:25:03] Excluding water years 1986 for having more than 7 missing days of data
+INFO [2021-11-17 23:25:03] Excluding water years 2022 for having more than 7 missing days of data
+INFO [2021-11-17 23:25:04] ### Step 1 - Get Functional Flow Results ###
+INFO [2021-11-17 23:25:04] Retrieving results, please wait...
+INFO [2021-11-17 23:25:04] Using date format string %Y-%m-%d
+INFO [2021-11-17 23:25:06] COMID 2823750 is of stream class HSR - sending parameters to FFC online for that stream class. This may produce different results than if you run data through the FFC yourself using their default parameters.
+INFO [2021-11-17 23:25:12] Results ready.
+INFO [2021-11-17 23:25:12] Writing FFC results as CSVs to output/ffc_TLG
+INFO [2021-11-17 23:25:12] Writing observed plots to output/ffc_TLG
+INFO [2021-11-17 23:25:13] Writing output/ffc_TLG/2823750_DS__observed_only.png
+INFO [2021-11-17 23:25:14] Writing output/ffc_TLG/2823750_FA__observed_only.png
+INFO [2021-11-17 23:25:15] Writing output/ffc_TLG/2823750_Wet__observed_only.png
+INFO [2021-11-17 23:25:16] Writing output/ffc_TLG/2823750_SP__observed_only.png
+INFO [2021-11-17 23:25:17] Writing output/ffc_TLG/2823750_Peak_Tim_observed_only.png
+INFO [2021-11-17 23:25:17] Writing output/ffc_TLG/2823750_Peak_Dur_observed_only.png
+INFO [2021-11-17 23:25:18] Writing output/ffc_TLG/2823750_Peak_Fre_observed_only.png
+INFO [2021-11-17 23:25:19] Writing output/ffc_TLG/2823750_Peak__observed_only.png
+INFO [2021-11-17 23:25:20] Printing Observed/FFC Percentiles. You can also access attributes $ffc_results on this object for the annual values for each metric, $ffc_percentiles for calculated percentile values, and $doh_data for the Dimensionless Observed Hydrograph data.
+INFO [2021-11-17 23:25:20] c(106.6, 276.8, 175.60456, 534.96, 2, 437.007144460418, 1, 0.108522745571261, 45, 5200.4, 224, 91.6, 478.84, 1745.7, 48.8, 91.3, 117.85, 114.4, 1, 1.7, 1, 42965.8, 14241, 29141.2, 1, 1, 1)
+INFO [2021-11-17 23:25:20] c(123, 290.5, 264.36445, 693.7, 2, 553.984732229344, 3, 0.138518348896254, 50, 5979, 232, 109.5, 678.2, 2315.25, 78, 91.75, 170.875, 129.5, 1, 2.5, 1.5, 42965.8, 14241, 29141.2, 1, 2, 1)
+INFO [2021-11-17 23:25:20] c(156, 313, 364, 872.76202, 2, 773.988279052197, 6, 0.185185932773654, 62, 9698, 244, 137, 964.8, 3291, 96, 104, 193.75, 160, 1.5, 5.5, 2, 42965.8, 14241, 29141.2, 1, 4, 2)
+INFO [2021-11-17 23:25:20] c(175.5, 331, 391.41965, 1159.7, 3.5, 1315.02332270651, 17, 0.244748832505766, 85.5, 16214.5, 254, 182.5, 1257.2, 4484.5, 131.5, 127, 226.5, 203.75, 2.25, 19.5, 3, 42965.8, 14241, 29141.2, 1.25, 6.5, 2)
+INFO [2021-11-17 23:25:20] c(195.6, 347, 470.33878, 1529.92, 4, 2726.21789753696, 32, 0.29406242967074, 102.6, 20468.8, 264.8, 202, 1562.56, 5597.6, 138.6, 146.8, 243.5, 227.4, 2.7, 28.5, 6, 42965.8, 14241, 29141.2, 1.7, 8, 2.8)
+INFO [2021-11-17 23:25:20] c("DS_Dur_WS", "DS_Tim", "DS_Mag_50", "DS_Mag_90", "FA_Dur", "FA_Mag", "FA_Tim", "SP_ROC", "SP_Dur", "SP_Mag", "SP_Tim", "Wet_BFL_Dur", "Wet_BFL_Mag_10", "Wet_BFL_Mag_50", "Wet_Tim", "Peak_Tim_10", "Peak_Tim_2", "Peak_Tim_5", "Peak_Dur_10", "Peak_Dur_2", "Peak_Dur_5", "Peak_10", "Peak_2", "Peak_5", "Peak_Fre_10", "Peak_Fre_2", "Peak_Fre_5")
+INFO [2021-11-17 23:25:20] c(2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750, 2823750)
+INFO [2021-11-17 23:25:20] c("observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed", "observed")
+INFO [2021-11-17 23:25:20] Step 1 complete
