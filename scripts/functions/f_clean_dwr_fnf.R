@@ -10,6 +10,7 @@ library(janitor)
 library(ggplot2)
 library(imputeTS)
 library(wateRshedTools)
+library(fasstr)
 
 f_clean_dwr_fnf <- function(siteID="TLG") {
   
@@ -29,21 +30,8 @@ f_clean_dwr_fnf <- function(siteID="TLG") {
     add_WYD(., "date")
   
   flowdat <- flowdat %>%
-    rename(flow=value) %>% 
-    # replace NAs with -1 to plot
-    mutate(flow_rev = ifelse(is.na(flow), -1, flow))
-  
-  # visualize the negatives
-  g1 <- ggplot() + 
-    geom_col(data=flowdat, aes(x=date, y=flow_rev), 
-             color=ifelse(flowdat$flow_rev>0, "cyan4", "red3")) +
-    labs(title=glue("DWR Full Natural Flow for {siteID}: Raw Data"),
-         caption="Negative values are in red",
-         x="", y="Flow (cfs)") +
-    theme_classic() +
-    scale_y_continuous(labels = scales::comma)
-  print(g1)
-  
+    rename(flow=value) 
+    
   # Interpolate Values ------------------------------------------------------
   
   # use imputeTS: http://steffenmoritz.github.io/imputeTS/
@@ -51,35 +39,72 @@ f_clean_dwr_fnf <- function(siteID="TLG") {
   clean_df <- flowdat %>%
     # first fill all negatives with NA then interpolate
     mutate(flow_na = ifelse(flow<0, NA_integer_, flow),
+           # if zero flow days, fill with NA as well
+           flow_na = ifelse(flow==0, NA_integer_, flow_na),
            # now interpolate only na's
            ## structural time series model (Kalman)
-           flow_kalman = imputeTS::na_kalman(flow_na), 
+           flow_interp_cfs = imputeTS::na_kalman(flow_na), 
+           flow_interp_cms = 0.028316847*flow_interp_cfs)
            # mean average over 7 days
-           flow_ma7 = imputeTS::na_ma(flow_na, k = 7, weighting = "exponential"))
+           #flow_ma7 = imputeTS::na_ma(flow_na, k = 7, weighting = "exponential"))
   
-  ## VISUALIZE --------------------------------------------------------
+  ## ADD ANNUAL VOLUME in Acre Feet (1 cfs * 1.983/1000) -------------------
   
-  # visualize the nas and interpolated versions
-  #imputeTS::ggplot_na_distribution(clean_df$flow_na)
-  #imputeTS::ggplot_na_distribution(clean_df$flow_kalman)
+  clean_df <- clean_df %>% 
+    group_by(WY) %>% 
+    mutate(ann_tot_vol_acft = sum((flow_interp_cfs*1.983)/1000)) %>% 
+    # add percentile value for each flow value
+    group_by(station_id) %>% 
+    mutate(
+      percentile = round((stats::ecdf(flow_interp_cfs))(flow_interp_cfs), 4) * 100) %>% 
+    ungroup()
+  
+  ## Calc Centroid Timing with fasstr ----------------------------------------
+  
+  ## see here: (https://bcgov.github.io/fasstr/index.html)
+  
+  # calc timing
+  ann_flow_timing <- calc_annual_flow_timing(data = clean_df, dates = date, 
+                                             values = flow_interp_cms, groups = station_id,
+                                             water_year_start = 10, 
+                                             start_year = 1987, end_year = 2021, 
+                                             percent_total = c(25, 50, 75)) %>%
+    # clean names
+    clean_names() %>% 
+    rename(dowy_25pct_tot_q = 3, date_25pct_tot_q = 4,
+           dowy_50pct_tot_q = 5, date_50pct_tot_q = 6,
+           dowy_75pct_tot_q = 7, date_75pct_tot_q = 8) 
+    
+  # left join back to clean_df
+  clean_df_timing <- left_join(clean_df, ann_flow_timing[,-1], by=c("WY"="year"))
+    
+  # calc ALL annual stats
+  all_ann_stats <- calc_all_annual_stats(data = clean_df, dates = date, 
+                                         values = flow_interp_cms, groups = station_id,
+                                         water_year_start = 10, 
+                                         start_year = 1987, end_year = 2021) %>% 
+    mutate(tot_vol_acft = (Total_Volume_m3*0.000810714)/1000) %>% 
+    
+    # add ann percentile
+    group_by(station_id) %>%
+    mutate(
+      ann_vol_percentile = round((stats::ecdf(tot_vol_acft))(tot_vol_acft), 4) * 100) %>% 
+    ungroup() %>% 
+  # drop mm cols
+  select(-c(ends_with("_mm")))
+  
+  ## SAVE OUT CSV -------------------------------------------
   
   # write out
-  readr::write_csv(clean_df, glue("data_clean/clean_fnf_daily_dwr_{siteID}_cdec.csv"))
+  readr::write_csv(clean_df_timing, glue("data_clean/clean_fnf_daily_dwr_{siteID}_cdec.csv"))
   
   # print message!
-  print(glue("Data saved here: 'data_clean/clean_fnf_daily_dwr_{siteID}_cdec.csv'"))
+  print(glue("Daily data saved here: 'data_clean/clean_fnf_daily_dwr_{siteID}_cdec.csv'"))
   
-  # quick plot
-  p1 <- ggplot(clean_df) +
-    geom_line(aes(x=date, y=flow_kalman)) +
-    labs(
-      title=glue("DWR Full Natural Flow for {siteID}: Interpolated {min(year(clean_df$date))}-{max(year(clean_df$date))}"),
-      caption="Negative values interpolated with Kalman structural time series {imputeTS}",
-      x="", y="Flow (cfs)") +
-    scale_y_continuous(labels = scales::comma)+
-    theme_classic()
-  print(p1)
+  # write out
+  readr::write_csv(all_ann_stats, glue("data_clean/clean_fnf_ann_stats_{siteID}_cdec.csv"))
   
-  return(clean_df)
+  # print message!
+  print(glue("Annual data saved here: 'data_clean/clean_fnf_daily_dwr_{siteID}_cdec.csv'"))
 
 }
