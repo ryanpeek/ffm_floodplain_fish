@@ -3,6 +3,7 @@
 
 # htmls
 *.html
+docs/*html
 
 # History files
 .Rhistory

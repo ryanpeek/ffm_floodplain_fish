@@ -45,32 +45,6 @@ f_clean_dwr_fnf <- function(siteID="TLG") {
         scale_y_continuous(labels = scales::comma)}
   print(g1)
   
-  # Interpolate Values ------------------------------------------------------
-  
-  # use imputeTS: http://steffenmoritz.github.io/imputeTS/
-  
-  clean_df <- flowdat %>%
-    # first fill all negatives with NA then interpolate
-    mutate(flow_na = ifelse(flow<0, NA_integer_, flow),
-           # if zero flow days, fill with NA as well
-           flow_na = ifelse(flow==0, NA_integer_, flow_na),
-           # now interpolate only na's
-           ## structural time series model (Kalman)
-           flow_kalman = imputeTS::na_kalman(flow_na), 
-           flow_kalman_cms = 0.028316847*flow_kalman,
-           # mean average over 7 days
-           flow_ma7 = imputeTS::na_ma(flow_na, k = 7, weighting = "exponential"))
-  
-  ## ADD ANNUAL VOLUME in Acre Feet (1 cfs * 1.983/1000) -------------------
-  
-  clean_df <- clean_df %>% 
-    group_by(WY) %>% 
-    mutate(ann_tot_vol = sum((flow_kalman*1.983)/1000)) %>% 
-    # add percentile value for each flow value
-    group_by(station_id) %>% 
-    mutate(
-      percentile = round((stats::ecdf(flow_kalman))(flow_kalman), 4) * 100) %>% 
-    ungroup()
   
   ## Calc Centroid Timing with fasstr (https://cran.r-project.org/web/packages/fasstr/vignettes/fasstr_users_guide.html)
   library(fasstr)

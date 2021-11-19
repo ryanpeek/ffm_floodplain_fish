@@ -1,0 +1,206 @@
+---
+title: "Flow Plots"
+description: |
+  FF Metrics and visualizations
+author:
+  - name: R. Peek 
+date: "Updated `r Sys.Date()`"
+output: distill::distill_article
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(layout="l-page")
+library(here)
+library(glue)
+```
+
+# Pulling Full Natural Flow Data
+
+First we pulled data from CDEC for Station TLG (Tuolumne at La Grange). These data were full natural flow calculations from DWR.
+
+## Data Cleaning
+
+Many data points were negative, which creates downstream issues with the functional flow analysis. Thus, these values were converted to NAs and then imputed using a structural time series model (Kalman model) with the {`imputeTS`} package in R.
+
+We then calculated daily and annual statistics on the full period of record, including centroid timing, annual flow volumes, and the percentiles associated with daily and annual flows.
+
+### Data Summary
+
+Annual flow stats were calculated using the {`fasstr`} package. Unless otherwise specified, flow volumes are currently in **`cms`**.
+
+```{r flowstats-ann, layout="l-page"}
+
+suppressPackageStartupMessages(source(here("scripts/functions/f_load_dwr_fnf.R")))
+f_load_dwr_fnf()
+
+library(DT)
+# filter to just some basic columns
+dwr_ann_df %>% 
+  select(station_id:Annual_Maximum, starts_with("DoY"), tot_vol_acft:ann_vol_percentile) %>% 
+  # round data
+  mutate(across(.cols = Annual_Maximum:ann_vol_percentile, round, 1)) %>% 
+  DT::datatable()
+```
+
+Daily flow stats are in both cms and cfs, and volumes have been converted to acre-feet^3^. This is only a portion of the total data.
+
+```{r flowstats-daily}
+dwr_daily_df_filt <- dwr_daily_df %>% filter(WY>1986 & WY < 2022)
+
+# summarize filtered
+summary(dwr_daily_df_filt)
+
+```
+
+## Visualization
+
+We can visualize the data in a variety of ways.
+
+> Negative value distribution of raw data:
+
+```{r negflow, fig.cap="Raw Full Natural Flow plots"}
+
+library(ggplot2)
+library(plotly)
+
+siteID <- "TLG"
+# visualize the negatives
+g1 <- dwr_daily_df_filt %>% 
+  # replace NAs with -1 to plot
+  mutate(flow_rev = ifelse(is.na(flow), -1, flow)) %>% {
+    ggplot() +
+      geom_col(data = ., aes(x=date, y=flow_rev),
+               color=ifelse(.$flow_rev >0, "cyan4", "red3")) +
+      labs(title=glue("DWR Full Natural Flow for {siteID}: Raw Data"),
+           caption="Negative values are in red",
+           x="", y="Flow (cfs)") +
+      theme_classic() +
+      scale_y_continuous(labels = scales::comma)}
+ggplotly(g1)
+
+```
+
+> Look at the NAs in the Data
+
+```{r nasflow, fig.cap="Negative values replaced with NAs to visualize data"}
+
+# visualize the nas and interpolated versions
+imputeTS::ggplot_na_distribution(dwr_daily_df_filt$flow_na)
+
+```
+
+> Plot Annual Flow Timing
+
+```{r annflow, fig.cap="Flow Timing of Total Annual Volume"}
+
+library(fasstr)
+# flow timing   
+plot_annual_flow_timing(data = dwr_daily_df, dates = date, 
+                        values = flow_interp_cms, groups = station_id,
+                        water_year_start = 10, 
+                        start_year = 1987, end_year = 2021, 
+                        percent_total = c(25, 33.3, 50, 75))
+
+```
+
+
+
+> Plot Daily Flow Statistics
+
+Add a low flow year (2014) for comparison.
+
+```{r dailyflow, fig.cap="Daily flow statistics for period of record"}
+
+# flow timing   
+plot_daily_stats(data = dwr_daily_df, dates = date, 
+                   values = flow_interp_cms, groups = station_id,
+                   water_year_start = 10, 
+                   start_year = 1987, end_year = 2021, add_year = 2014)
+
+```
+
+
+> Cumulative Flow Stats
+
+```{r cumulativeStats, fig.cap="Cumulative Flow statistics"}
+
+plot_daily_cumulative_stats(data = dwr_daily_df, dates = date, 
+                              values = flow_interp_cms, groups = station_id,
+                              water_year_start = 10, 
+                              start_year = 1987, end_year = 2021)
+
+```
+
+> Flow Duration Curves for Period of Record
+
+```{r FlowDurationCurves, fig.cap="Cumulative Flow statistics"}
+
+plot_flow_duration(data = dwr_daily_df, dates = date, 
+                              values = flow_interp_cms, groups = station_id,
+                              water_year_start = 10, 
+                              start_year = 1987, end_year = 2021)
+
+```
+
+
+> Flow Summary for Period of Record
+
+Here we show the interpolated data vs. the raw data (with negative values). In some cases this is certainly an overestimation, but in order to calculate flow metrics we need a complete (and positive) flow record. This is just one approach.
+
+```{r totalPOR, fig.cap="Flow for Period of Record", eval=FALSE}
+
+siteID <- "TLG"
+
+# quick plot
+p1 <- ggplot(data = dwr_daily_df_filt) +
+  geom_col(aes(x=date, y=flow),color="cyan4") +
+  geom_point(aes(x=date, y=flow_interp_cfs), pch=21, fill="yellow", size=2) +
+  labs(
+    title=glue("DWR Full Natural Flow for {siteID}: Interpolated {min(dwr_daily_df_filt$WY)}-{max(dwr_daily_df_filt$WY)}"),
+    caption="Yellow dots represent negative values that interpolated with Kalman structural time series {imputeTS}",
+    x="", y="Flow (cfs)") +
+  scale_y_continuous(labels = scales::comma)+
+  theme_classic()
+ggplotly(p1)
+
+```
+
+## Pull in FFM
+
+Next we can read in the data
+
+```{r}
+
+ffm <- read_csv(here("output/ffc_TLG/2823750_ffc_results.csv"), show_col_types = FALSE) %>% 
+  #drop first column and peak metrics
+  dplyr::select(-1, -starts_with("Peak_"))
+
+# select ann metrics we want
+dwr_ann_df_sel <- select(dwr_ann_df, Year:Annual_Minimum, starts_with("DoY"),tot_vol_acft, ann_vol_percentile)
+
+# join
+dat_out <- left_join(ffm, dwr_ann_df_sel)
+
+# now calc percentiles
+
+
+# plot
+ggplot()+
+  geom_point(data=dat_out, aes(x=SP_Tim, y=DoY_50pct_TotalQ), pch=16, col="black") +
+  geom_smooth(data=dat_out, aes(x=SP_Tim, y=DoY_50pct_TotalQ), method = "gam", color="gray40") +
+  geom_point(data=dat_out, aes(x=SP_Tim, y=DoY_33pct_TotalQ), pch=17, col="cyan4")+
+  geom_smooth(data=dat_out, aes(x=SP_Tim, y=DoY_33pct_TotalQ), method = "gam", color="cyan4") +
+  geom_point(data=dat_out, aes(x=SP_Tim, y=DoY_75pct_TotalQ), pch=21, col="darkblue")+
+  geom_smooth(data=dat_out, aes(x=SP_Tim, y=DoY_75pct_TotalQ), method = "gam", color="darkblue") +
+  theme_classic() +
+  labs(title = "Centroid Timing vs. Spring Timing (Day of Water Year",
+       subtitle = "(darkblue=75% of total vol, lightblue=33% of total vol, black=50% of total vol",
+       y="Day of Water Year % Annual Volume Reached",
+       x="Spring Timing (Day of water year)")
+  
+
+```
+
