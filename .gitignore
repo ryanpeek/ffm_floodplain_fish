@@ -1,6 +1,3 @@
-# mac file
-.DS_Store
-
 # htmls
 *.html
 docs/*html
@@ -52,3 +49,6 @@ vignettes/*.pdf
 
 # DS Store
 *.DS_Store
+
+# update wyt zip
+WYT_ALL_COMIDS.csv.zip
