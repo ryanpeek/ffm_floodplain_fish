@@ -33,7 +33,7 @@ Annual flow stats were calculated using the {`fasstr`} package. Unless otherwise
 
 ```{r flowstats-ann, layout="l-page"}
 
-suppressPackageStartupMessages(source(here("scripts/functions/f_load_dwr_fnf.R")))
+suppressPackageStartupMessages(source(here("scripts/functions/f_dwr_03_load_fnf.R")))
 f_load_dwr_fnf()
 
 library(DT)
@@ -193,7 +193,7 @@ ggplotly(p1)
 
 ```
 
-## Functional Flow Metrics (FFM)
+## Functional Flow Metrics (FFM) (DWR TLG)
 
 Next we can read in the data from the functional flow metrics and bind with our annual stats (centroid timing, etc). We also calculate what percentiles each metric is across the period of record for that metric (so essentially ranking the data). We joined these data with a tercile water year type calculated stored on the TNC website.
 
@@ -216,49 +216,49 @@ get_percentiles <- function(x){
 }
 
 # run it on all columns!
-dat_out_p <- dat_out %>% 
+dat_out_prct <- dat_out %>% 
   mutate(across(DS_Dur_WS:Wet_Tim, ~get_percentiles(.x), .names= "{.col}_pct"))
 
-## to calculate our own timing percentiles, we can use this:
-# library(fasstr)
-# ann_flow_timing <- calc_annual_flow_timing(data = dwr_daily_df_filt, dates = date, 
-#                                            values = flow_interp_cms, 
-#                                            groups = station_id,
-#                                            water_year_start = 10, 
-#                                            start_year = 1987, end_year = 2021, 
-#                                            percent_total = c(25, 50, 75)) %>%
-# # clean names
-#     janitor::clean_names() %>% 
-#     rename(dowy_25pct_tot_q = 3, date_25pct_tot_q = 4,
-#            dowy_50pct_tot_q = 5, date_50pct_tot_q = 6,
-#            dowy_75pct_tot_q = 7, date_75pct_tot_q = 8)
+```
 
+```{r centTiming, echo=FALSE, eval=FALSE}
+# calc own timing:
+# to calculate our own timing percentiles, we can use this:
+library(fasstr)
+ann_flow_timing <- calc_annual_flow_timing(data = dwr_daily_df_filt, dates = date,
+                                           values = flow_interp_cms,
+                                           groups = station_id,
+                                           water_year_start = 10,
+                                           start_year = 1987, end_year = 2021,
+                                           percent_total = c(25, 50, 75)) %>%
+# clean names
+    janitor::clean_names() %>%
+    rename(dowy_25pct_tot_q = 3, date_25pct_tot_q = 4,
+           dowy_50pct_tot_q = 5, date_50pct_tot_q = 6,
+           dowy_75pct_tot_q = 7, date_75pct_tot_q = 8)
 
-# TNC join with water year types:
-wyt <- read_csv(here("data_clean/tnc_wyt_2823750.csv"), show_col_types = FALSE)
+```
 
-dat_out_p <- left_join(dat_out_p, wyt[,c(1,2,5)], by=c("Year"="year")) %>% 
-  rename(wyt_tnc = wyt)
+```{r addWYT}
 
-# get CDEC wyt
-cdec_wyt <- wateRshedTools::ca_wytypes %>% 
-  select(WY, sj_WYtype)
+# join with water year types
+wyt <- read_rds(here("data_clean/wyt_cdec_tnc_2823750.rds"))
 
-dat_out_p <- left_join(dat_out_p, cdec_wyt, by=c("Year"="WY")) %>%
-  rename(wyt_sj_cdec = sj_WYtype) %>% 
-  # fill one NA with "D"
-  mutate(wyt_sj_cdec = ifelse(is.na(wyt_sj_cdec), "D", wyt_sj_cdec)) %>% 
-  mutate(wyt_sj_cdec = 
-           forcats::fct_relevel(wyt_sj_cdec, c("W","AN","BN", "D","C")))
+# join with data
+dat_out_p <- left_join(dat_out_prct, 
+                       wyt %>% select(year, starts_with("wyt")),
+                       by=c("Year"="year"))
 
-# levels(dat_out_p$wyt_sj_cdec)
+levels(dat_out_p$wyt_tnc)
+levels(dat_out_p$wyt_sj_cdec)
+
 ```
 
 ### Centroid Timing of Total Annual Volume
 
 We can plot the centroid timing at different values (here, 50%, and 75% of the total annual flow volume) over the period of record. There is a general trend for the center of volume to occur earlier than the spring recession timing.
 
-```{r plotcentTiming, fig.cap="Centroid Timing for 33%, 50%, 75% vs. Spring Timing"}
+```{r plotcentTiming, fig.cap="Centroid Timing for 50%, 75% vs. Spring Timing"}
 
 # plot
 ggplot()+
@@ -280,6 +280,27 @@ ggplot()+
 ```
 
 
+```{r plotcentTimingTNC, fig.cap="Centroid Timing for 50%, 75% vs. Spring Timing"}
+
+# plot
+(g2 <- ggplot()+
+  geom_point(data=dat_out_p, aes(x=SP_Tim, y=DoY_50pct_TotalQ, fill=wyt_tnc), pch=21, size=2.5, col="black") +
+  geom_smooth(data=dat_out_p, aes(x=SP_Tim, y=DoY_50pct_TotalQ), method = "gam", color="cyan4") +
+  geom_point(data=dat_out_p, aes(x=SP_Tim, y=DoY_75pct_TotalQ, fill=wyt_tnc), pch=23, size=2.5, col="darkblue")+
+  geom_smooth(data=dat_out_p, aes(x=SP_Tim, y=DoY_75pct_TotalQ), method = "gam", color="darkblue") +
+  geom_abline(intercept = 0, alpha=0.5, lty=2) +
+  scale_y_continuous(breaks=c(seq(90,270,20)))+
+  theme_bw() +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  #facet_wrap(.~wyt) +
+  labs(title = "Centroid Timing vs. Spring Timing (Day of Water Year",
+       subtitle = "(darkblue=75%, lightblue=50% of tot vol, 1:1 line is dashed)",
+       y="Day of Water Year % Annual Volume Reached",
+       x="Spring Timing (Day of water year)"))
+  
+
+```
+
 ### Volume vs. Percentiles: FNF
 
 These plots are the percentiles calculated for functional flow metric for the period of record of station TLG (1987-2021). We calculated the functional flow metrics based on interpolated daily flows, and then took a cumulative distribution function to calculate the percentile value of each calculated FF metric in each year. These can then be plotted against the total annual volume for the same year.
@@ -297,7 +318,7 @@ colblind8 <-colorblind_pal()(8)
 
 # plot
 gg_out <- dat_out_p %>% 
-  select(Year, wyt_sj_cdec, tot_vol_acft, ann_vol_percentile,
+  select(Year, wyt_sj_cdec, wyt_tnc, tot_vol_acft, ann_vol_percentile,
          DS_Dur_WS_pct:Wet_Tim_pct) %>% 
   pivot_longer(DS_Dur_WS_pct:Wet_Tim_pct, 
                names_to = "FFM", 
@@ -309,6 +330,21 @@ gg_out %>%
   geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_sj_cdec), pch=21, size=2.5) +
   geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[2]) +
   scale_fill_viridis_d("CDEC WYT", option = "C") +
+  facet_wrap(.~FFM) +
+  theme_cowplot(font_size = 12) +
+  #facet_grid(FFM~wyt) + # gams don't work for this
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
+
+gg_out %>% 
+  filter(grepl("DS_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[2]) +
+  #scale_fill_viridis_d("CDEC WYT", option = "C") +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
   facet_wrap(.~FFM) +
   theme_cowplot(font_size = 12) +
   #facet_grid(FFM~wyt) + # gams don't work for this
@@ -336,6 +372,20 @@ gg_out %>%
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
 
+
+gg_out %>% 
+  filter(grepl("FA_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "glm", color=colblind8[7]) +
+  facet_wrap(.~FFM) +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  theme_cowplot(font_size = 12) +
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Fall Pulse",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
+
 ```
 
 
@@ -353,6 +403,20 @@ gg_out %>%
   labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
+
+gg_out %>% 
+  filter(grepl("Wet_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[6]) +
+  facet_wrap(.~FFM) +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  theme_cowplot(font_size = 12) +
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
+
 
 ```
 
@@ -373,23 +437,44 @@ gg_out %>%
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
 
+gg_out %>% 
+  filter(grepl("SP_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), 
+             pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[4]) +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  facet_wrap(.~FFM) +
+  theme_cowplot(font_size = 12) +
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Spring Recession",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
+
 ```
 
-## Functional Flow Metrics (FFM): Livneh et al.
+## Functional Flow Metrics: Livneh et al.
 
 Next we can read in the data calculated Livneh et al. to generate the same functional flow metrics and annual stats (centroid timing, etc).
 
-```{r joindata, echo=FALSE}
+```{r getLivneh, echo=FALSE}
 
-ffm <- read_csv(here("output/ffc_TLG/2823750_ffc_results.csv"), show_col_types = FALSE) %>% 
+# ffm
+liv_ffm <- read_csv(here("output/ffc_livneh/2823750_livneh_ffc_results.csv"),
+                    show_col_types = FALSE) %>% 
   #drop first column and peak metrics
   dplyr::select(-1, -starts_with("Peak_"))
 
+# get livneh data
+source(here("scripts/functions/f_livneh_02_load_fnf.R"))
+f_load_livneh_fnf()
+
 # select ann metrics we want
-dwr_ann_df_sel <- select(dwr_ann_df, Year:Annual_Minimum, starts_with("DoY"),tot_vol_acft, ann_vol_percentile)
+liv_ann_df_sel <- select(liv_ann_df, Year:Annual_Minimum,
+                         starts_with("DoY"),tot_vol_acft, ann_vol_percentile)
 
 # join
-dat_out <- left_join(ffm, dwr_ann_df_sel)
+liv_dat_out <- left_join(liv_ffm, liv_ann_df_sel)
 
 # function to calc percentiles
 get_percentiles <- function(x){
@@ -398,56 +483,35 @@ get_percentiles <- function(x){
 }
 
 # run it on all columns!
-dat_out_p <- dat_out %>% 
+liv_dat_out_p <- liv_dat_out %>% 
   mutate(across(DS_Dur_WS:Wet_Tim, ~get_percentiles(.x), .names= "{.col}_pct"))
 
-## to calculate our own timing percentiles, we can use this:
-# library(fasstr)
-# ann_flow_timing <- calc_annual_flow_timing(data = dwr_daily_df_filt, dates = date, 
-#                                            values = flow_interp_cms, 
-#                                            groups = station_id,
-#                                            water_year_start = 10, 
-#                                            start_year = 1987, end_year = 2021, 
-#                                            percent_total = c(25, 50, 75)) %>%
-# # clean names
-#     janitor::clean_names() %>% 
-#     rename(dowy_25pct_tot_q = 3, date_25pct_tot_q = 4,
-#            dowy_50pct_tot_q = 5, date_50pct_tot_q = 6,
-#            dowy_75pct_tot_q = 7, date_75pct_tot_q = 8)
+# join with water year types
+wyt <- read_rds(here("data_clean/wyt_cdec_tnc_2823750.rds"))
 
+# join with data
+liv_dat_out_p <- left_join(liv_dat_out_p, 
+                       wyt %>% select(year, starts_with("wyt")),
+                       by=c("Year"="year"))
 
-# TNC join with water year types:
-wyt <- read_csv(here("data_clean/tnc_wyt_2823750.csv"), show_col_types = FALSE)
+# levels(liv_dat_out_p$wyt_tnc)
+# levels(liv_dat_out_p$wyt_sj_cdec)
+# range(liv_dat_out_p$Year)
 
-dat_out_p <- left_join(dat_out_p, wyt[,c(1,2,5)], by=c("Year"="year")) %>% 
-  rename(wyt_tnc = wyt)
-
-# get CDEC wyt
-cdec_wyt <- wateRshedTools::ca_wytypes %>% 
-  select(WY, sj_WYtype)
-
-dat_out_p <- left_join(dat_out_p, cdec_wyt, by=c("Year"="WY")) %>%
-  rename(wyt_sj_cdec = sj_WYtype) %>% 
-  # fill one NA with "D"
-  mutate(wyt_sj_cdec = ifelse(is.na(wyt_sj_cdec), "D", wyt_sj_cdec)) %>% 
-  mutate(wyt_sj_cdec = 
-           forcats::fct_relevel(wyt_sj_cdec, c("W","AN","BN", "D","C")))
-
-# levels(dat_out_p$wyt_sj_cdec)
 ```
 
 ### Centroid Timing of Total Annual Volume
 
 We can plot the centroid timing at different values (here, 50%, and 75% of the total annual flow volume) over the period of record. There is a general trend for the center of volume to occur earlier than the spring recession timing.
 
-```{r plotcentTiming, fig.cap="Centroid Timing for 33%, 50%, 75% vs. Spring Timing"}
+```{r plotcentTiming2, fig.cap="Centroid Timing for 50%, 75% vs. Spring Timing"}
 
 # plot
 ggplot()+
-  geom_point(data=dat_out_p, aes(x=SP_Tim, y=DoY_50pct_TotalQ, fill=wyt_sj_cdec), pch=21, size=2.5, col="black") +
-  geom_smooth(data=dat_out_p, aes(x=SP_Tim, y=DoY_50pct_TotalQ), method = "gam", color="cyan4") +
-  geom_point(data=dat_out_p, aes(x=SP_Tim, y=DoY_75pct_TotalQ, fill=wyt_sj_cdec), pch=23, size=2.5, col="darkblue")+
-  geom_smooth(data=dat_out_p, aes(x=SP_Tim, y=DoY_75pct_TotalQ), method = "gam", color="darkblue") +
+  geom_point(data=liv_dat_out_p, aes(x=SP_Tim, y=DoY_50pct_TotalQ, fill=wyt_sj_cdec), pch=21, size=2.5, col="black") +
+  geom_smooth(data=liv_dat_out_p, aes(x=SP_Tim, y=DoY_50pct_TotalQ), method = "gam", color="cyan4") +
+  geom_point(data=liv_dat_out_p, aes(x=SP_Tim, y=DoY_75pct_TotalQ, fill=wyt_sj_cdec), pch=23, size=2.5, col="darkblue")+
+  geom_smooth(data=liv_dat_out_p, aes(x=SP_Tim, y=DoY_75pct_TotalQ), method = "gam", color="darkblue") +
   geom_abline(intercept = 0, alpha=0.5, lty=2) +
   scale_y_continuous(breaks=c(seq(90,270,20)))+
   theme_bw() +
@@ -467,7 +531,7 @@ ggplot()+
 These plots are the percentiles calculated for functional flow metric for the period of record of station TLG (1987-2021). We calculated the functional flow metrics based on interpolated daily flows, and then took a cumulative distribution function to calculate the percentile value of each calculated FF metric in each year. These can then be plotted against the total annual volume for the same year.
 
 
-```{r plotVolPercnt-DS, fig.cap="Total Volume vs. Dry Season FFM Percentiles"}
+```{r plotVolPercnt-DS2, fig.cap="Total Volume vs. Dry Season FFM Percentiles"}
 
 library(cowplot)
 library(tidyr)
@@ -478,14 +542,14 @@ library(scales)
 colblind8 <-colorblind_pal()(8)
 
 # plot
-gg_out <- dat_out_p %>% 
-  select(Year, wyt_sj_cdec, tot_vol_acft, ann_vol_percentile,
+gg_out_liv <- liv_dat_out_p %>% 
+  select(Year, wyt_sj_cdec, wyt_tnc, tot_vol_acft, ann_vol_percentile,
          DS_Dur_WS_pct:Wet_Tim_pct) %>% 
   pivot_longer(DS_Dur_WS_pct:Wet_Tim_pct, 
                names_to = "FFM", 
                values_to = "ffm_por_percentile")
   
-gg_out %>% 
+gg_out_liv %>% 
   filter(grepl("DS_", FFM)) %>% 
   ggplot(data=.) +
   geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_sj_cdec), pch=21, size=2.5) +
@@ -498,14 +562,29 @@ gg_out %>%
   labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
+
+gg_out_liv %>% 
+  filter(grepl("DS_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[2]) +
+  #scale_fill_viridis_d("CDEC WYT", option = "C") +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  facet_wrap(.~FFM) +
+  theme_cowplot(font_size = 12) +
+  #facet_grid(FFM~wyt) + # gams don't work for this
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
   
 ```
 
 
 
-```{r plotVolPercnt-FA, fig.cap="Total Volume vs. Fall Pulse FFM Percentiles"}
+```{r plotVolPercnt-FA2, fig.cap="Total Volume vs. Fall Pulse FFM Percentiles"}
 
-gg_out %>% 
+gg_out_liv %>% 
   filter(grepl("FA_", FFM)) %>% 
   ggplot(data=.) +
   geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_sj_cdec), pch=21, size=2.5) +
@@ -518,12 +597,26 @@ gg_out %>%
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
 
+
+gg_out_liv %>% 
+  filter(grepl("FA_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "glm", color=colblind8[7]) +
+  facet_wrap(.~FFM) +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  theme_cowplot(font_size = 12) +
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Fall Pulse",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
+
 ```
 
 
-```{r plotVolPercnt-Wet, fig.cap="Total Volume vs. Wet Season FFM Percentiles"}
+```{r plotVolPercnt-Wet2, fig.cap="Total Volume vs. Wet Season FFM Percentiles"}
 
-gg_out %>% 
+gg_out_liv %>% 
   filter(grepl("Wet_", FFM)) %>% 
   ggplot(data=.) +
   geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_sj_cdec), pch=21, size=2.5) +
@@ -536,12 +629,26 @@ gg_out %>%
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
 
+gg_out_liv %>% 
+  filter(grepl("Wet_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[6]) +
+  facet_wrap(.~FFM) +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  theme_cowplot(font_size = 12) +
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
+
+
 ```
 
 
-```{r plotVolPercnt-SP, fig.cap="Total Volume vs. Spring Timing FFM Percentiles"}
+```{r plotVolPercnt-SP2, fig.cap="Total Volume vs. Spring Timing FFM Percentiles"}
 
-gg_out %>% 
+gg_out_liv %>% 
   filter(grepl("SP_", FFM)) %>% 
   ggplot(data=.) +
   geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_sj_cdec), 
@@ -555,5 +662,18 @@ gg_out %>%
        y=bquote("Total Volume" ~('acre ft'^3)), 
        x="Percentile of each year")
 
-```
+gg_out_liv %>% 
+  filter(grepl("SP_", FFM)) %>% 
+  ggplot(data=.) +
+  geom_point(aes(x=ffm_por_percentile, y=tot_vol_acft, fill=wyt_tnc), 
+             pch=21, size=2.5) +
+  geom_smooth(aes(x=ffm_por_percentile, y=tot_vol_acft), method = "gam", color=colblind8[4]) +
+  scale_fill_viridis_d("WYT TNC", option = "C") +
+  facet_wrap(.~FFM) +
+  theme_cowplot(font_size = 12) +
+  cowplot::background_grid(major = "xy") +
+  labs(subtitle = "Total Ann Volume vs. FFM: Spring Recession",
+       y=bquote("Total Volume" ~('acre ft'^3)), 
+       x="Percentile of each year")
 
+```

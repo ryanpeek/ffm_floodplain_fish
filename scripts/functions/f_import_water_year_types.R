@@ -1,4 +1,6 @@
 library(dplyr)
+library(tidyr)
+library(forcats)
 library(readr)
 library(vroom)
 library(glue)
@@ -29,8 +31,12 @@ f_import_water_year_types <- function(comids=c(2823750L)){
   
   dat_out <- full_join(df_tnc_filt, df_cdec, by=c("year"="wy")) %>% 
     mutate(across(c(wyt_sj_cdec, wyt_sac_cdec), 
-                  ~forcats::fct_relevel(.x, c("W","AN","BN", "D","C"))))
+                  ~forcats::fct_relevel(.x, c("W","AN","BN", "D","C")))) %>%
+    mutate(wyt_tnc = forcats::fct_relevel(wyt_tnc, c("Wet","Moderate","Dry"))) %>% 
+    tidyr::fill(comid, .direction = "down")
   
   # write out:
-  write_csv(df_filt, file = glue("data_clean/wyt_{comid_tlg}.csv"))
+  write_csv(dat_out, file = glue("data_clean/wyt_cdec_tnc_{first(comids)}.csv"))
+  write_rds(dat_out, file = glue("data_clean/wyt_cdec_tnc_{first(comids)}.rds"))
+  return(dat_out)
 }
