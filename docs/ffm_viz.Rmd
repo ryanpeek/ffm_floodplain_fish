@@ -5,7 +5,9 @@ description: |
 author:
   - name: R. Peek 
 date: "Updated `r Sys.Date()`"
-output: distill::distill_article
+output: 
+  distill::distill_article:
+    toc: true
 editor_options: 
   chunk_output_type: console
 ---
@@ -29,12 +31,15 @@ We then calculated daily and annual statistics on the full period of record, inc
 
 ### Data Summary
 
-Annual flow stats were calculated using the {`fasstr`} package. Unless otherwise specified, flow volumes are currently in **`cms`**.
+Annual flow stats were calculated using the {`fasstr`} package. Unless otherwise specified, flow is currently in **`cms`**.
 
 ```{r flowstats-ann, layout="l-page"}
 
+
+# y axis: thousand acre feet / year
+# percentile of metric
 suppressPackageStartupMessages(source(here("scripts/functions/f_dwr_03_load_fnf.R")))
-f_load_dwr_fnf()
+f_dwr_03_load_fnf()
 
 library(DT)
 # filter to just some basic columns
@@ -45,7 +50,7 @@ dwr_ann_df %>%
   DT::datatable()
 ```
 
-Daily flow stats are in both cms and cfs, and volumes have been converted to acre-feet^3^. This is only a portion of the total data.
+Daily flow stats are in both cms and cfs, and volumes have been converted to thousand acre-feet. This is only a portion of the total data.
 
 ```{r flowstats-daily}
 dwr_daily_df_filt <- dwr_daily_df %>% filter(WY>1986 & WY < 2022)
@@ -57,7 +62,7 @@ summary(dwr_daily_df_filt)
 
 ## Visualization
 
-We can visualize the data in a variety of ways.
+We can visualize the data in a variety of ways. The DWR daily data from the TLG site has many negative values.
 
 ### Negative value distribution of raw data:
 
@@ -83,18 +88,11 @@ ggplotly(g1)
 
 ```
 
-### Plot the NAs in the Data
-
-```{r nasflow, fig.cap="Negative values replaced with NAs to visualize data"}
-
-# visualize the nas and interpolated versions
-imputeTS::ggplot_na_distribution(dwr_daily_df_filt$flow_na)
-
-```
+To interpolate these data, we converted all negative values to NA, and then imputed data using a structural time series model (Kalman Smoother) with the {`imputeTS`} package in R. This performs well and provides a tighter relationship than using a 7-day moving average (centered). Both methods have been compared, but for calculating the function flow metrics we opted to move forward with the Kalman smoothed interpolation.
 
 ### Plot the Interpolated Data
 
-```{r}
+```{r interpDat, fig.cap="DWR FNF for TLG: Negative values are in red, Kalman Smoothed data in yellow"}
 
 g1 <- dwr_daily_df_filt %>% 
   # replace NAs with -1 to plot
@@ -102,8 +100,8 @@ g1 <- dwr_daily_df_filt %>%
     ggplot(data=.) +
       geom_col(aes(x=date, y=flow_rev),
                color=ifelse(.$flow_rev >0, "cyan4", "red3")) +
-      labs(title=glue("DWR Full Natural Flow for {siteID}: Raw Data"),
-           caption="Negative values are in red",
+      labs(title=glue("DWR Full Natural Flow for {siteID}"),
+           subtitle="Negative values are in red, Kalman Smoothed data in yellow",
            x="", y="Flow (cfs)") +
       geom_point(aes(x=date, y=flow_interp_cfs), fill="yellow", pch=21) +
       theme_classic() +
@@ -119,6 +117,8 @@ Below we show many different ways to visualize the flow and flow volumes.
 
 ### Plot Annual Flow Timing
 
+This shows the center of timing (50%) and the 25%, 33% and 75%. This is the day of the year that a given percentage of the total volume has occurred. Note 1997 was very early as a very wet year, while 2015 through 2018 all clustered together because while there was less total water, that center of timing still happened earlier.
+
 ```{r annflow, fig.cap="Flow Timing of Total Annual Volume"}
 
 library(fasstr)
@@ -132,11 +132,8 @@ plot_annual_flow_timing(data = dwr_daily_df, dates = date,
 ```
 
 
-### Plot Daily Flow Statistics
-
-Add a low flow year (2014) for comparison.
-
-```{r dailyflow, fig.cap="Daily flow statistics for period of record"}
+```{r dailyflow,  eval =FALSE, echo=FALSE, fig.cap="Daily flow statistics for period of record"}
+# Add a low flow year (2014) for comparison.
 
 # flow timing   
 plot_daily_stats(data = dwr_daily_df, dates = date, 
@@ -147,9 +144,7 @@ plot_daily_stats(data = dwr_daily_df, dates = date,
 ```
 
 
-### Cumulative Flow Stats
-
-```{r cumulativeStats, fig.cap="Cumulative Flow statistics"}
+```{r cumulativeStats, echo = FALSE, eval=FALSE, fig.cap="Cumulative Flow statistics"}
 
 plot_daily_cumulative_stats(data = dwr_daily_df, dates = date, 
                               values = flow_interp_cms, groups = station_id,
@@ -170,7 +165,7 @@ plot_flow_duration(data = dwr_daily_df, dates = date,
 
 ```
 
--->
+
 ### Flow Summary for Period of Record
 
 Here we show the interpolated data vs. the raw data (with negative values). In some cases this is certainly an overestimation, but in order to calculate flow metrics we need a complete (and positive) flow record. This is just one approach.
@@ -192,6 +187,7 @@ p1 <- ggplot(data = dwr_daily_df_filt) +
 ggplotly(p1)
 
 ```
+-->
 
 ## Functional Flow Metrics (FFM) (DWR TLG)
 
@@ -249,8 +245,8 @@ dat_out_p <- left_join(dat_out_prct,
                        wyt %>% select(year, starts_with("wyt")),
                        by=c("Year"="year"))
 
-levels(dat_out_p$wyt_tnc)
-levels(dat_out_p$wyt_sj_cdec)
+#levels(dat_out_p$wyt_tnc)
+#levels(dat_out_p$wyt_sj_cdec)
 
 ```
 
@@ -334,9 +330,9 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   #facet_grid(FFM~wyt) + # gams don't work for this
   cowplot::background_grid(major = "xy") +
-  labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+  labs(subtitle = "Total Ann. Volume vs. FFM: Dry Season",
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 gg_out %>% 
   filter(grepl("DS_", FFM)) %>% 
@@ -350,8 +346,8 @@ gg_out %>%
   #facet_grid(FFM~wyt) + # gams don't work for this
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
   
 ```
 
@@ -369,8 +365,8 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Fall Pulse",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 
 gg_out %>% 
@@ -383,8 +379,8 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Fall Pulse",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 ```
 
@@ -401,8 +397,8 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 gg_out %>% 
   filter(grepl("Wet_", FFM)) %>% 
@@ -414,8 +410,8 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 
 ```
@@ -434,8 +430,8 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Spring Recession",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 gg_out %>% 
   filter(grepl("SP_", FFM)) %>% 
@@ -448,8 +444,8 @@ gg_out %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Spring Recession",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 ```
 
@@ -457,7 +453,7 @@ gg_out %>%
 
 Next we can read in the data calculated Livneh et al. to generate the same functional flow metrics and annual stats (centroid timing, etc).
 
-```{r getLivneh, echo=FALSE}
+```{r getLivneh, echo=FALSE, message=FALSE, warning=FALSE}
 
 # ffm
 liv_ffm <- read_csv(here("output/ffc_livneh/2823750_livneh_ffc_results.csv"),
@@ -560,8 +556,8 @@ gg_out_liv %>%
   #facet_grid(FFM~wyt) + # gams don't work for this
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 gg_out_liv %>% 
   filter(grepl("DS_", FFM)) %>% 
@@ -575,8 +571,8 @@ gg_out_liv %>%
   #facet_grid(FFM~wyt) + # gams don't work for this
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Dry Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
   
 ```
 
@@ -594,8 +590,8 @@ gg_out_liv %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Fall Pulse",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 
 gg_out_liv %>% 
@@ -608,8 +604,8 @@ gg_out_liv %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Fall Pulse",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 ```
 
@@ -626,8 +622,8 @@ gg_out_liv %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 gg_out_liv %>% 
   filter(grepl("Wet_", FFM)) %>% 
@@ -639,8 +635,8 @@ gg_out_liv %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Wet Season",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 
 ```
@@ -659,8 +655,8 @@ gg_out_liv %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Spring Recession",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 gg_out_liv %>% 
   filter(grepl("SP_", FFM)) %>% 
@@ -673,7 +669,7 @@ gg_out_liv %>%
   theme_cowplot(font_size = 12) +
   cowplot::background_grid(major = "xy") +
   labs(subtitle = "Total Ann Volume vs. FFM: Spring Recession",
-       y=bquote("Total Volume" ~('acre ft'^3)), 
-       x="Percentile of each year")
+       y="Total Volume (thousand acre feet)", 
+       x="Percentile of metric")
 
 ```

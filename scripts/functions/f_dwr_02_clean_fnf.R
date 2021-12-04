@@ -12,7 +12,7 @@ library(imputeTS)
 library(wateRshedTools)
 library(fasstr)
 
-f_clean_dwr_fnf <- function(siteID="TLG") {
+f_dwr_02_clean_fnf <- function(siteID="TLG") {
   
   # get data:
   print("loading raw data...")
@@ -22,7 +22,7 @@ f_clean_dwr_fnf <- function(siteID="TLG") {
   print(glue("The hash for current data is: {flowdat}"))
   
   # this is hard coded so if something changes we need to rerun to get new hash
-  flow_file <- contentid::resolve("hash://sha256/bc46aefc7a96f6ca46652177a124afc793d64ff63cd832891d4e755d15406ba1")
+  flow_file <- contentid::resolve(flowdat)
   
   # read in data
   flowdat <- read_csv(flow_file, show_col_types = FALSE) %>%
@@ -44,14 +44,17 @@ f_clean_dwr_fnf <- function(siteID="TLG") {
            # now interpolate only na's
            ## structural time series model (Kalman)
            flow_interp_cfs = imputeTS::na_kalman(flow_na), 
-           flow_interp_cms = 0.028316847*flow_interp_cfs)
+           flow_interp_cms = 0.028316847*flow_interp_cfs,
            # mean average over 7 days
-           #flow_ma7 = imputeTS::na_ma(flow_na, k = 7, weighting = "exponential"))
+           flow_ma7_cfs = imputeTS::na_ma(flow_na, k = 7, weighting = "exponential"))
   
-  ## ADD ANNUAL VOLUME in Acre Feet (1 cfs * 1.983/1000) -------------------
+  #  how do these compare?
+#  clean_df %>% filter(is.na(flow_na)) %>% ggplot() + geom_point(aes(x=flow_interp_cfs, y=flow_ma7_cfs, color=WY)) + geom_abline(slope=1, intercept = 0)
+  
+  ## ADD ANNUAL VOLUME in thousand Acre Feet per day (sum(1 cfs * 1.983)/1000) ------
   
   clean_df <- clean_df %>% 
-    group_by(WY) %>% 
+    group_by(WY) %>% # convert to acre feet per day
     mutate(ann_tot_vol_acft = sum((flow_interp_cfs*1.983)/1000)) %>% 
     # add percentile value for each flow value
     group_by(station_id) %>% 

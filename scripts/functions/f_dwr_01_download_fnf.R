@@ -10,7 +10,7 @@ library(wateRshedTools)
 
 
 # pull data: defaults to Verona daily discharge
-f_get_dwr_fnf <- function(siteID="TLG", sensor=8) {
+f_dwr_01_download_fnf <- function(siteID="TLG", sensor=8) {
   
   # get data:
   print("Downloading data...")

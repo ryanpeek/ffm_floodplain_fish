@@ -6,7 +6,7 @@ library(readr)
 library(glue)
 library(here)
 
-f_load_dwr_fnf <- function(site="TLG") {
+f_dwr_03_load_fnf <- function(site="TLG") {
   
   # get raw data ID:
   (dwr_fnf_daily <- contentid::store(here(glue("data_clean/clean_fnf_daily_dwr_{site}_cdec.csv"))))
