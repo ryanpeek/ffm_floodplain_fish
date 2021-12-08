@@ -250,6 +250,26 @@ dat_out_p <- left_join(dat_out_prct,
 
 ```
 
+
+```{r summtable, echo=FALSE, eval=FALSE}
+
+# We want to create a summary table with the following:
+#water year, annual_volume, spring_mag, spring_mag_percentile, spring_timing, spring_timing_percentile, wet-season_mag, wet-season_mag_percentile, dry-season_mag, dry-season_mag_percentile
+
+# rearrange table
+table_out <- dat_out_p %>% 
+  select(Year, wyt_tnc, DoY_50pct_TotalQ, tot_vol_acft, ann_vol_percentile, 
+         SP_ROC, SP_ROC_pct, SP_Dur, SP_Dur_pct,
+         SP_Mag, SP_Mag_pct, SP_Tim, SP_Tim_pct,
+         Wet_BFL_Dur, Wet_BFL_Dur_pct, Wet_BFL_Mag_10, Wet_BFL_Mag_10_pct,
+         Wet_BFL_Mag_50, Wet_BFL_Mag_50_pct, Wet_Tim, Wet_Tim_pct,
+         DS_Dur_WS, DS_Dur_WS_pct, DS_Tim, DS_Tim_pct,
+         DS_Mag_50, DS_Mag_50_pct, DS_Mag_90, DS_Mag_90_pct,
+         FA_Dur, FA_Dur_pct, FA_Mag, FA_Mag_pct, FA_Tim, FA_Tim_pct)
+
+write_csv(table_out, file = here("data_clean/clean_summary_ffc_percentile_ann_vol_table.csv"))
+```
+
 ### Centroid Timing of Total Annual Volume
 
 We can plot the centroid timing at different values (here, 50%, and 75% of the total annual flow volume) over the period of record. There is a general trend for the center of volume to occur earlier than the spring recession timing.
