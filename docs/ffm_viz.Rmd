@@ -132,7 +132,7 @@ plot_annual_flow_timing(data = dwr_daily_df, dates = date,
 ```
 
 
-```{r dailyflow,  eval =FALSE, echo=FALSE, fig.cap="Daily flow statistics for period of record"}
+```{r dailyflow,  eval=FALSE, echo=FALSE, fig.cap="Daily flow statistics for period of record"}
 # Add a low flow year (2014) for comparison.
 
 # flow timing   
@@ -693,3 +693,10 @@ gg_out_liv %>%
        x="Percentile of metric")
 
 ```
+
+
+## Flow Adjustment
+
+Need to adapt a curve or piecewise relationship between magnitudes and 40% of FNF.
+
+Need to stay between 1000 and 10000 cfs as boundaries, but may want to adjust less during lower percentiles and greater differential for higher percentiles.

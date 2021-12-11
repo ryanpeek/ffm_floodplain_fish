@@ -1,16 +1,16 @@
-# f_clean_dwr_fnf
+# Function to clean the FNF data from DWR site
 
-# clean flow data for ffcalc
-library(dplyr)
-library(readr)
-library(glue)
-library(contentid)
-library(lubridate)
-library(janitor)
-library(ggplot2)
-library(imputeTS)
-library(wateRshedTools)
-library(fasstr)
+library(dplyr) # data wrangling
+library(fs) # platform independent handling of file systems
+library(readr) # import/export
+library(glue) # pasting stuff together
+library(contentid) # using hash id to see if content changed
+library(lubridate) # datetimes
+library(janitor) # cleaning data
+library(ggplot2) # plotting
+library(imputeTS) # time-series interpolation
+library(wateRshedTools) # custom functions
+library(fasstr) # water/stream functions
 
 f_dwr_02_clean_fnf <- function(siteID="TLG") {
   
@@ -21,13 +21,13 @@ f_dwr_02_clean_fnf <- function(siteID="TLG") {
   flowdat <- contentid::store(glue("data_raw/fnf_daily_dwr_{siteID}_downloaded_cdec.csv"))
   print(glue("The hash for current data is: {flowdat}"))
   
-  # this is hard coded so if something changes we need to rerun to get new hash
+  # pull unique hash of data
   flow_file <- contentid::resolve(flowdat)
   
   # read in data
   flowdat <- read_csv(flow_file, show_col_types = FALSE) %>%
     # add water year, dowy columns
-    add_WYD(., "date")
+    wateRshedTools::add_WYD(., "date")
   
   flowdat <- flowdat %>%
     rename(flow=value) 
@@ -49,13 +49,13 @@ f_dwr_02_clean_fnf <- function(siteID="TLG") {
            flow_ma7_cfs = imputeTS::na_ma(flow_na, k = 7, weighting = "exponential"))
   
   #  how do these compare?
-#  clean_df %>% filter(is.na(flow_na)) %>% ggplot() + geom_point(aes(x=flow_interp_cfs, y=flow_ma7_cfs, color=WY)) + geom_abline(slope=1, intercept = 0)
+  clean_df %>% filter(is.na(flow_na)) %>% ggplot() + geom_point(aes(x=flow_interp_cfs, y=flow_ma7_cfs, color=WY)) + geom_abline(slope=1, intercept = 0)
   
   ## ADD ANNUAL VOLUME in thousand Acre Feet per day (sum(1 cfs * 1.983)/1000) ------
   
   clean_df <- clean_df %>% 
     group_by(WY) %>% # convert to acre feet per day
-    mutate(ann_tot_vol_acft = sum((flow_interp_cfs*1.983)/1000)) %>% 
+    mutate(ann_tot_vol_taf = sum((flow_interp_cfs*1.983)/1000)) %>% 
     # add percentile value for each flow value
     group_by(station_id) %>% 
     mutate(
@@ -97,6 +97,8 @@ f_dwr_02_clean_fnf <- function(siteID="TLG") {
   select(-c(ends_with("_mm")))
   
   ## SAVE OUT CSV -------------------------------------------
+  
+  fs::dir_create("data_clean")
   
   # write out
   readr::write_csv(clean_df_timing, glue("data_clean/clean_fnf_daily_dwr_{siteID}_cdec.csv"))
